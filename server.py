@@ -19,7 +19,7 @@ from utils.groq_helper import GroqHelper
 from utils.report_generator import generate_comparison_pdf
 
 # ─── Load Environment ─────────────────────────────────────────────────────────
-load_dotenv()
+load_dotenv(override=True)
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024  # 20 MB max upload
@@ -61,6 +61,12 @@ def index():
 def catalog():
     """Serve the insurance catalog page."""
     return render_template("catalog.html")
+
+
+@app.route("/settings")
+def settings():
+    """Serve the profile settings page."""
+    return render_template("settings.html")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

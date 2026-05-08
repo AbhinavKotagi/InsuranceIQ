@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en" class="dark overflow-x-hidden">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile Settings | InsureAI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+    <link href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600,700&f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #020617;
+            --card-glass: rgba(30, 41, 59, 0.5);
+            --primary-glow: rgba(99, 102, 241, 0.4);
+        }
+        body {
+            font-family: 'General Sans', sans-serif;
+            background: radial-gradient(circle at top left, #0f172a, #020617);
+            color: #f8fafc;
+        }
+        .glass-card {
+            background: var(--card-glass);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+        }
+        .glow-hover:hover {
+            box-shadow: 0 0 20px var(--primary-glow);
+            transform: translateY(-2px);
+            transition: all 0.3s ease;
+        }
+        .sidebar-active {
+            background: linear-gradient(to right, #4f46e5, #7c3aed);
+            box-shadow: 0 0 15px rgba(79, 70, 229, 0.4);
+            border-right: 2px solid #a5b4fc;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #1e293b;
+            border-radius: 10px;
+        }
+        .toggle-switch:checked + .toggle-bg {
+            background-color: #6366f1;
+        }
+        .toggle-switch:checked + .toggle-bg .toggle-dot {
+            transform: translateX(1.25rem);
+        }
+    </style>
+</head>
+<body>
+    <div class="min-h-screen flex flex-col md:flex-row overflow-hidden bg-slate-950">
+
+        <!-- Left Sidebar -->
+        <aside id="sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-slate-900/90 backdrop-blur-xl border-r border-white/5 transition-transform duration-300 transform -translate-x-full lg:translate-x-0 lg:static">
+            <div class="flex flex-col h-full">
+                <!-- Logo -->
+                <div class="p-8 flex items-center gap-3">
+                    <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-600/40">
+                        <iconify-icon icon="lucide:shield-check" class="text-white text-2xl"></iconify-icon>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold tracking-tight text-white">InsureAI</h1>
+                        <p class="text-[10px] text-indigo-400 font-medium tracking-widest uppercase">Your AI Advisor</p>
+                    </div>
+                </div>
+
+                <!-- Navigation -->
+                <nav class="flex-1 px-4 space-y-1 overflow-y-auto custom-scrollbar">
+                    <a href="/" id="nav-dashboard" class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-white/5 hover:text-white transition-all">
+                        <iconify-icon icon="lucide:layout-grid"></iconify-icon>
+                        <span class="font-medium">Dashboard</span>
+                    </a>
+                    <a href="/" id="nav-compare" class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-white/5 hover:text-white transition-all">
+                        <iconify-icon icon="lucide:git-compare"></iconify-icon>
+                        <span class="font-medium">Compare Policies</span>
+                    </a>
+                    <a href="/" id="nav-chat" class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-white/5 hover:text-white transition-all">
+                        <iconify-icon icon="lucide:message-square-text"></iconify-icon>
+                        <span class="font-medium uppercase text-[11px] tracking-wider bg-slate-800 px-1 rounded absolute right-6">AI</span>
+                        <span class="font-medium">AI Chat Assistant</span>
+                    </a>
+                    <a href="#" id="nav-docs" class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-white/5 hover:text-white transition-all">
+                        <iconify-icon icon="lucide:folder-closed"></iconify-icon>
+                        <span class="font-medium">My Documents</span>
+                    </a>
+                    <a href="#" id="nav-explain" class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-white/5 hover:text-white transition-all">
+                        <iconify-icon icon="lucide:info"></iconify-icon>
+                        <span class="font-medium">Explainers</span>
+                    </a>
+                    <a href="#" id="nav-recs" class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-white/5 hover:text-white transition-all">
+                        <iconify-icon icon="lucide:star"></iconify-icon>
+                        <span class="font-medium">Recommendations</span>
+                    </a>
+                    <a href="/catalog" id="nav-catalog" class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-white/5 hover:text-white transition-all">
+                        <iconify-icon icon="lucide:book-open"></iconify-icon>
+                        <span class="font-medium">Insurance Catalog</span>
+                    </a>
+                    <a href="/settings" id="nav-settings" class="flex items-center gap-3 px-4 py-3 rounded-xl text-white sidebar-active transition-all group">
+                        <iconify-icon icon="lucide:settings" class="animate-spin-slow"></iconify-icon>
+                        <span class="font-medium">Profile Settings</span>
+                    </a>
+                </nav>
+
+                <!-- Bottom Card -->
+                <div class="p-4">
+                    <div class="bg-indigo-900/40 rounded-2xl p-4 border border-indigo-500/20">
+                        <h3 class="text-sm font-semibold text-white mb-1">Need Help?</h3>
+                        <p class="text-xs text-indigo-200/70 mb-3">Our AI assistant is here to help you choose the best policy.</p>
+                        <button id="ask-ai-btn" onclick="window.location='/'" class="w-full py-2 bg-indigo-600 rounded-lg text-xs font-bold text-white shadow-lg shadow-indigo-900/50 hover:bg-indigo-500 transition-colors">Ask AI Assistant</button>
+                    </div>
+                    <div class="mt-6 flex items-center justify-between px-2">
+                        <div class="flex items-center gap-2">
+                            <iconify-icon icon="lucide:moon" class="text-slate-400"></iconify-icon>
+                            <span class="text-sm text-slate-400">Dark Mode</span>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" checked class="sr-only peer">
+                            <div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 flex flex-col h-screen overflow-hidden">
+            <!-- Header -->
+            <header class="h-20 flex items-center justify-between px-6 lg:px-10 border-b border-white/5 bg-slate-900/30 backdrop-blur-md">
+                <div class="flex items-center lg:hidden">
+                    <button id="mobile-menu-toggle" class="text-slate-400 p-2">
+                        <iconify-icon icon="lucide:menu" class="text-2xl"></iconify-icon>
+                    </button>
+                </div>
+                <div>
+                    <h2 class="text-2xl font-bold text-white leading-tight">Profile Settings</h2>
+                    <p class="text-sm text-slate-400 hidden sm:block">Manage your personal information and preferences</p>
+                </div>
+                <div class="flex items-center gap-4">
+                    <button id="edit-profile-btn" class="px-4 py-2 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 transition-all font-medium text-sm hidden md:block">
+                        Edit Profile
+                    </button>
+                    <button id="save-changes-btn" class="px-6 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-semibold text-sm shadow-lg shadow-indigo-600/20 hover:scale-105 active:scale-95 transition-all">
+                        Save Changes
+                    </button>
+                    <div class="w-px h-8 bg-slate-800 mx-2 hidden sm:block"></div>
+                    <div class="flex items-center gap-2">
+                        <div class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 cursor-pointer">
+                            <iconify-icon icon="lucide:bell"></iconify-icon>
+                        </div>
+                        <div class="flex items-center gap-2 bg-slate-800/50 p-1 pr-3 rounded-full border border-white/5 cursor-pointer">
+                            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Abhinav" class="w-8 h-8 rounded-full border border-indigo-500/30" alt="Profile">
+                            <span class="text-sm font-medium text-white hidden sm:inline">AK</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Scrollable Content -->
+            <div class="flex-1 flex flex-col lg:flex-row overflow-hidden">
+                <div class="flex-1 overflow-y-auto p-6 lg:p-10 space-y-8 custom-scrollbar pb-24">
+                    
+                    <!-- Profile Header Card -->
+                    <section class="glass-card rounded-3xl p-6 lg:p-8 flex flex-col lg:flex-row items-center gap-8 relative overflow-hidden">
+                        <div class="absolute -top-12 -right-12 w-48 h-48 bg-indigo-600/10 blur-[100px] rounded-full"></div>
+                        
+                        <!-- Avatar with status -->
+                        <div class="relative group">
+                            <div class="w-32 h-32 rounded-full border-4 border-indigo-600/30 p-1">
+                                <img id="profile-image-preview" src="https://api.dicebear.com/7.x/avataaars/svg?seed=Abhinav" class="w-full h-full rounded-full object-cover" alt="Profile Large">
+                            </div>
+                            <div class="absolute bottom-1 right-1 w-6 h-6 bg-green-500 border-4 border-slate-900 rounded-full"></div>
+                            <label for="upload-avatar" class="absolute inset-0 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity">
+                                <iconify-icon icon="lucide:camera" class="text-white text-2xl"></iconify-icon>
+                                <input type="file" id="upload-avatar" class="hidden" accept="image/*">
+                            </label>
+                        </div>
+
+                        <!-- Info -->
+                        <div class="flex-1 text-center lg:text-left">
+                            <div class="flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-4 mb-2">
+                                <h3 class="text-2xl font-bold text-white">Abhinav Rao</h3>
+                                <span class="px-3 py-1 bg-indigo-500/20 text-indigo-300 text-xs font-bold rounded-full border border-indigo-500/30 w-fit mx-auto lg:mx-0 uppercase tracking-wider">
+                                    Premium AI Advisor
+                                </span>
+                            </div>
+                            <p class="text-slate-400 mb-4 flex flex-wrap justify-center lg:justify-start items-center gap-4 text-sm">
+                                <span class="flex items-center gap-1.5"><iconify-icon icon="lucide:mail"></iconify-icon> abhinav@example.com</span>
+                                <span class="flex items-center gap-1.5"><iconify-icon icon="lucide:phone"></iconify-icon> +91 98765 43210</span>
+                                <span class="flex items-center gap-1.5"><iconify-icon icon="lucide:calendar"></iconify-icon> Member since Jan 2025</span>
+                            </p>
+                        </div>
+
+                        <!-- Completion Progress -->
+                        <div class="flex flex-col items-center gap-2 min-w-[120px]">
+                            <div class="relative w-24 h-24 flex items-center justify-center">
+                                <svg class="w-full h-full -rotate-90">
+                                    <circle cx="48" cy="48" r="40" stroke="currentColor" stroke-width="6" fill="transparent" class="text-slate-800" />
+                                    <circle cx="48" cy="48" r="40" stroke="currentColor" stroke-width="6" fill="transparent" stroke-dasharray="251.2" stroke-dashoffset="37.6" class="text-indigo-500 stroke-cap-round transition-all duration-1000" />
+                                </svg>
+                                <span class="absolute text-xl font-bold text-white">85%</span>
+                            </div>
+                            <span class="text-[10px] uppercase tracking-widest text-slate-400 font-semibold">Profile Complete</span>
+                        </div>
+                    </section>
+
+                    <!-- Sections Grid -->
+                    <div class="grid grid-cols-1 gap-8">
+                        
+                        <!-- Personal Information -->
+                        <div class="glass-card rounded-3xl p-6 lg:p-8">
+                            <div class="flex items-center gap-3 mb-8">
+                                <div class="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center">
+                                    <iconify-icon icon="lucide:user" class="text-indigo-400"></iconify-icon>
+                                </div>
+                                <h4 class="text-xl font-bold text-white">Personal Information</h4>
+                            </div>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium text-slate-400 px-1">Full Name</label>
+                                    <input type="text" value="Abhinav Rao" class="w-full bg-slate-900/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition-all">
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium text-slate-400 px-1">Email Address</label>
+                                    <input type="email" value="abhinav@example.com" class="w-full bg-slate-900/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition-all">
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium text-slate-400 px-1">Phone Number</label>
+                                    <input type="tel" value="+91 9876543210" class="w-full bg-slate-900/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition-all">
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium text-slate-400 px-1">Date of Birth</label>
+                                    <input type="date" value="1994-05-15" class="w-full bg-slate-900/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition-all">
+                                </div>
+                                <div class="space-y-2 md:col-span-2">
+                                    <label class="text-sm font-medium text-slate-400 px-1">Address</label>
+                                    <input type="text" value="H-12, Sector 62, Noida, India" class="w-full bg-slate-900/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 transition-all">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Insurance Preferences -->
+                        <div class="glass-card rounded-3xl p-6 lg:p-8">
+                            <div class="flex items-center gap-3 mb-8">
+                                <div class="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center">
+                                    <iconify-icon icon="lucide:umbrella" class="text-violet-400"></iconify-icon>
+                                </div>
+                                <h4 class="text-xl font-bold text-white">Insurance Preferences</h4>
+                            </div>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium text-slate-400 px-1">Preferred Insurance Type</label>
+                                    <select class="w-full bg-slate-900/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all appearance-none cursor-pointer">
+                                        <option>Health Insurance</option>
+                                        <option>Life Insurance</option>
+                                        <option selected>Motor Insurance</option>
+                                        <option>Travel Insurance</option>
+                                        <option>Home Insurance</option>
+                                    </select>
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium text-slate-400 px-1">Risk Preference</label>
+                                    <select class="w-full bg-slate-900/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all appearance-none cursor-pointer">
+                                        <option>Low Risk</option>
+                                        <option selected>Moderate Risk</option>
+                                        <option>High Risk</option>
+                                    </select>
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium text-slate-400 px-1">Annual Budget ($)</label>
+                                    <input type="number" value="2500" class="w-full bg-slate-900/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all">
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium text-slate-400 px-1">Family Size</label>
+                                    <input type="number" value="4" class="w-full bg-slate-900/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Notification Preferences -->
+                        <div class="glass-card rounded-3xl p-6 lg:p-8">
+                            <div class="flex items-center gap-3 mb-8">
+                                <div class="w-8 h-8 rounded-lg bg-pink-500/20 flex items-center justify-center">
+                                    <iconify-icon icon="lucide:bell-ring" class="text-pink-400"></iconify-icon>
+                                </div>
+                                <h4 class="text-xl font-bold text-white">Notification Preferences</h4>
+                            </div>
+                            
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                                <div class="flex items-center justify-between p-4 bg-slate-900/30 rounded-2xl border border-white/5">
+                                    <div class="flex flex-col">
+                                        <span class="text-sm font-semibold text-white">Email Notifications</span>
+                                        <span class="text-[10px] text-slate-500 uppercase font-medium">Weekly reports</span>
+                                    </div>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" checked class="sr-only toggle-switch">
+                                        <div class="w-10 h-5 bg-slate-700 rounded-full transition-colors toggle-bg">
+                                            <div class="toggle-dot w-4 h-4 bg-white rounded-full absolute top-[2px] left-[2px] transition-transform"></div>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="flex items-center justify-between p-4 bg-slate-900/30 rounded-2xl border border-white/5">
+                                    <div class="flex flex-col">
+                                        <span class="text-sm font-semibold text-white">SMS Alerts</span>
+                                        <span class="text-[10px] text-slate-500 uppercase font-medium">Critical updates</span>
+                                    </div>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" class="sr-only toggle-switch">
+                                        <div class="w-10 h-5 bg-slate-700 rounded-full transition-colors toggle-bg">
+                                            <div class="toggle-dot w-4 h-4 bg-white rounded-full absolute top-[2px] left-[2px] transition-transform"></div>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="flex items-center justify-between p-4 bg-slate-900/30 rounded-2xl border border-white/5">
+                                    <div class="flex flex-col">
+                                        <span class="text-sm font-semibold text-white">AI Recommendations</span>
+                                        <span class="text-[10px] text-slate-500 uppercase font-medium">Smart savings</span>
+                                    </div>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" checked class="sr-only toggle-switch">
+                                        <div class="w-10 h-5 bg-slate-700 rounded-full transition-colors toggle-bg">
+                                            <div class="toggle-dot w-4 h-4 bg-white rounded-full absolute top-[2px] left-[2px] transition-transform"></div>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="flex items-center justify-between p-4 bg-slate-900/30 rounded-2xl border border-white/5">
+                                    <div class="flex flex-col">
+                                        <span class="text-sm font-semibold text-white">Policy Reminders</span>
+                                        <span class="text-[10px] text-slate-500 uppercase font-medium">Renewal dates</span>
+                                    </div>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" checked class="sr-only toggle-switch">
+                                        <div class="w-10 h-5 bg-slate-700 rounded-full transition-colors toggle-bg">
+                                            <div class="toggle-dot w-4 h-4 bg-white rounded-full absolute top-[2px] left-[2px] transition-transform"></div>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="flex items-center justify-between p-4 bg-slate-900/30 rounded-2xl border border-white/5">
+                                    <div class="flex flex-col">
+                                        <span class="text-sm font-semibold text-white">Claim Updates</span>
+                                        <span class="text-[10px] text-slate-500 uppercase font-medium">Real-time status</span>
+                                    </div>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" checked class="sr-only toggle-switch">
+                                        <div class="w-10 h-5 bg-slate-700 rounded-full transition-colors toggle-bg">
+                                            <div class="toggle-dot w-4 h-4 bg-white rounded-full absolute top-[2px] left-[2px] transition-transform"></div>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Security & Privacy -->
+                        <div class="glass-card rounded-3xl p-6 lg:p-8">
+                            <div class="flex items-center gap-3 mb-8">
+                                <div class="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                                    <iconify-icon icon="lucide:lock" class="text-emerald-400"></iconify-icon>
+                                </div>
+                                <h4 class="text-xl font-bold text-white">Security & Privacy</h4>
+                            </div>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium text-slate-400 px-1">Current Password</label>
+                                    <input type="password" value="password123" class="w-full bg-slate-900/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/40 transition-all">
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium text-slate-400 px-1">New Password</label>
+                                    <input type="password" placeholder="Minimum 8 chars" class="w-full bg-slate-900/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/40 transition-all">
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium text-slate-400 px-1">Confirm New Password</label>
+                                    <input type="password" placeholder="Repeat password" class="w-full bg-slate-900/50 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/40 transition-all">
+                                </div>
+                            </div>
+
+                            <div class="flex flex-wrap gap-4 mt-8 pt-6 border-t border-white/5">
+                                <button class="px-6 py-3 rounded-xl bg-emerald-600 text-white font-semibold text-sm hover:bg-emerald-500 transition-all">Change Password</button>
+                                <button class="px-6 py-3 rounded-xl border border-slate-700 text-slate-300 font-semibold text-sm hover:bg-slate-800 transition-all">Enable 2FA</button>
+                                <button class="px-6 py-3 rounded-xl border border-red-500/50 text-red-400 font-semibold text-sm hover:bg-red-500/10 transition-all ml-auto">Logout All Devices</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Side Panel -->
+                <aside class="hidden xl:block w-80 border-l border-white/5 bg-slate-900/20 p-6 overflow-y-auto custom-scrollbar">
+                    <div class="space-y-8">
+                        <!-- AI Insights -->
+                        <div>
+                            <div class="flex items-center gap-2 mb-4">
+                                <iconify-icon icon="lucide:sparkles" class="text-indigo-400"></iconify-icon>
+                                <h4 class="text-sm font-bold uppercase tracking-wider text-slate-400">AI Insights</h4>
+                            </div>
+                            <div class="space-y-4">
+                                <div class="p-4 bg-slate-800/40 rounded-2xl border border-indigo-500/10">
+                                    <div class="flex justify-between items-start mb-2">
+                                        <span class="text-xs font-semibold text-indigo-300 uppercase">Readiness Score</span>
+                                        <span class="text-xl font-bold text-white">9.2</span>
+                                    </div>
+                                    <div class="w-full h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                                        <div class="w-[92%] h-full bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div>
+                                    </div>
+                                    <p class="text-[10px] text-slate-500 mt-2">Your profile is excellently optimized for AI comparison.</p>
+                                </div>
+                                <div class="p-4 bg-slate-800/40 rounded-2xl border border-violet-500/10">
+                                    <span class="text-[10px] font-bold text-violet-400 uppercase">Recommended</span>
+                                    <h5 class="text-sm font-bold text-white mt-1">Health + Life Combo</h5>
+                                    <p class="text-xs text-slate-400 mt-1">Based on your risk profile, this bundle offers 15% better coverage.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Recent Activity -->
+                        <div>
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="flex items-center gap-2">
+                                    <iconify-icon icon="lucide:history" class="text-slate-500"></iconify-icon>
+                                    <h4 class="text-sm font-bold uppercase tracking-wider text-slate-400">Recent Activity</h4>
+                                </div>
+                                <button class="text-[10px] text-indigo-400 font-bold uppercase">See All</button>
+                            </div>
+                            <div class="space-y-4">
+                                <div class="flex gap-3">
+                                    <div class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center shrink-0">
+                                        <iconify-icon icon="lucide:eye" class="text-slate-400 text-xs"></iconify-icon>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs text-slate-300 font-medium">Viewed <span class="text-indigo-400">HDFC ERGO</span> plan</p>
+                                        <span class="text-[10px] text-slate-500">2 hours ago</span>
+                                    </div>
+                                </div>
+                                <div class="flex gap-3">
+                                    <div class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center shrink-0">
+                                        <iconify-icon icon="lucide:shield-plus" class="text-green-400 text-xs"></iconify-icon>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs text-slate-300 font-medium">Added <span class="text-green-400">Family Health</span> policy</p>
+                                        <span class="text-[10px] text-slate-500">Yesterday</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Quick Actions -->
+                        <div>
+                            <h4 class="text-sm font-bold uppercase tracking-wider text-slate-400 mb-4">Quick Actions</h4>
+                            <div class="grid grid-cols-2 gap-3">
+                                <button class="p-3 bg-slate-800/40 rounded-xl border border-white/5 flex flex-col items-center gap-2 hover:bg-slate-800 transition-colors">
+                                    <iconify-icon icon="lucide:upload-cloud" class="text-indigo-400"></iconify-icon>
+                                    <span class="text-[10px] font-bold text-slate-300">Upload Policy</span>
+                                </button>
+                                <button class="p-3 bg-slate-800/40 rounded-xl border border-white/5 flex flex-col items-center gap-2 hover:bg-slate-800 transition-colors">
+                                    <iconify-icon icon="lucide:download" class="text-indigo-400"></iconify-icon>
+                                    <span class="text-[10px] font-bold text-slate-300">Download Rep.</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </aside>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Profile Image Upload Preview
+        const uploadInput = document.getElementById('upload-avatar');
+        const imagePreview = document.getElementById('profile-image-preview');
+
+        uploadInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    imagePreview.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Mobile Menu Toggle
+        const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
+        const sidebar = document.getElementById('sidebar');
+
+        mobileMenuToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('-translate-x-full');
+        });
+
+        // Save Changes Animation
+        const saveBtn = document.getElementById('save-changes-btn');
+        saveBtn.addEventListener('click', () => {
+            const originalText = saveBtn.innerHTML;
+            saveBtn.innerHTML = '<iconify-icon icon="lucide:loader-2" class="animate-spin mr-2"></iconify-icon> Saving...';
+            saveBtn.disabled = true;
+            saveBtn.classList.add('opacity-80');
+
+            setTimeout(() => {
+                saveBtn.innerHTML = '<iconify-icon icon="lucide:check" class="mr-2"></iconify-icon> Saved Successfully';
+                saveBtn.classList.remove('from-indigo-600', 'to-violet-600');
+                saveBtn.classList.add('bg-green-600');
+                
+                setTimeout(() => {
+                    saveBtn.innerHTML = originalText;
+                    saveBtn.classList.remove('bg-green-600');
+                    saveBtn.classList.add('from-indigo-600', 'to-violet-600');
+                    saveBtn.disabled = false;
+                    saveBtn.classList.remove('opacity-80');
+                }, 2000);
+            }, 1500);
+        });
+
+        // Form validation feedback simple mock
+        const inputs = document.querySelectorAll('input, select');
+        inputs.forEach(input => {
+            input.addEventListener('blur', () => {
+                if (input.value.trim() !== '') {
+                    input.classList.add('border-green-500/30');
+                } else {
+                    input.classList.remove('border-green-500/30');
+                }
+            });
+        });
+
+        // Interaction for side panel score progress
+        window.addEventListener('load', () => {
+            const progressCircle = document.querySelector('circle.text-indigo-500');
+            // Reset to empty first for animation effect
+            if(progressCircle) {
+                progressCircle.style.strokeDashoffset = '251.2';
+                setTimeout(() => {
+                    progressCircle.style.strokeDashoffset = '37.6';
+                }, 500);
+            }
+        });
+    </script>
+</body>
+</html>
