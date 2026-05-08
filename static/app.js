@@ -1,292 +1,402 @@
 /**
- * InsureAI – Dashboard Frontend Logic
- * Connects the HTML UI to the Flask REST API endpoints.
+ * InsureAI – Dashboard Frontend Logic (Rewritten)
+ * Dynamic CSV/XLSX-driven policy cards, modal, search, filters, AI chat.
  */
 
-const API = '';  // Same origin
+const API = '';
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => document.querySelectorAll(sel);
+
+// ─── State ───────────────────────────────────────────────────────────────────
+let currentType = 'health';
+let allPolicies = [];
+let filteredPolicies = [];
+let activeFilter = 'none';
+let searchQuery = '';
 
 // ─── DOM References ──────────────────────────────────────────────────────────
-const $ = (sel) => document.querySelector(sel);
-const fileInput        = $('#file-input');
-const uploadBtn        = $('#upload-btn');
-const uploadDropZone   = $('#upload-drop-zone');
-const policyCardsGrid  = $('#policy-cards-grid');
-const policyCountLabel = $('#policy-count-label');
-const comparisonSection = $('#comparison-section');
-const compareBtn       = $('#compare-btn');
-const exportBtn        = $('#export-btn');
-const comparisonLoading = $('#comparison-loading');
-const comparisonTableWrap = $('#comparison-table-wrap');
-const comparisonThead  = $('#comparison-thead');
-const comparisonTbody  = $('#comparison-tbody');
-const aiRecBar         = $('#ai-recommendation-bar');
-const recText          = $('#rec-text');
-const analyticsSection = $('#analytics-section');
-const bestValueName    = $('#best-value-name');
-const bestValueSub     = $('#best-value-sub');
-const clauseCount      = $('#clause-count');
-const chatContainer    = $('#chat-container');
-const chatInput        = $('#chat-input');
-const chatSendBtn      = $('#chat-send-btn');
-const clearChatBtn     = $('#clear-chat-btn');
-const themeToggle      = $('#theme-toggle');
+const policyGrid = $('#policy-cards-grid');
+const countLabel = $('#policy-count-label');
+const filterBadge = $('#active-filter-badge');
+const searchInput = $('#search-input');
+const chatContainer = $('#chat-container');
+const chatInput = $('#chat-input');
+const chatSendBtn = $('#chat-send-btn');
+const clearChatBtn = $('#clear-chat-btn');
+const modal = $('#policy-modal');
+const fileInput = $('#file-input');
+const uploadBtn = $('#upload-btn');
 
-// Policy icon colors for visual variety
-const POLICY_COLORS = [
-  { bg: 'bg-blue-50 dark:bg-blue-900/30', icon: 'text-blue-600', iconName: 'lucide:activity' },
-  { bg: 'bg-red-50 dark:bg-red-900/30',   icon: 'text-red-600',  iconName: 'lucide:shield' },
-  { bg: 'bg-emerald-50 dark:bg-emerald-900/30', icon: 'text-emerald-600', iconName: 'lucide:heart-pulse' },
-  { bg: 'bg-amber-50 dark:bg-amber-900/30', icon: 'text-amber-600', iconName: 'lucide:umbrella' },
-  { bg: 'bg-purple-50 dark:bg-purple-900/30', icon: 'text-purple-600', iconName: 'lucide:shield-plus' },
-];
+// ─── Insurance Type Icons ────────────────────────────────────────────────────
+const COMPANY_ICONS = {
+  'hdfc ergo': 'lucide:shield-check',
+  'star health': 'lucide:star',
+  'niva bupa': 'lucide:heart-pulse',
+  'care insurance': 'lucide:activity',
+  'icici lombard': 'lucide:shield',
+  'bajaj allianz': 'lucide:shield-plus',
+  'tata aig': 'lucide:umbrella',
+  'max bupa': 'lucide:heart',
+  'reliance': 'lucide:zap',
+  'sbi': 'lucide:landmark',
+  'digit': 'lucide:cpu',
+  'acko': 'lucide:smartphone',
+  'new india': 'lucide:flag',
+  'national': 'lucide:building',
+  'united india': 'lucide:globe',
+  'oriental': 'lucide:compass',
+  'default': 'lucide:file-badge'
+};
+
+const ICON_COLORS = ['indigo','emerald','blue','purple','rose','amber','cyan','teal','orange','pink'];
+
+function getCompanyIcon(name) {
+  const lower = (name || '').toLowerCase();
+  for (const [key, icon] of Object.entries(COMPANY_ICONS)) {
+    if (lower.includes(key)) return icon;
+  }
+  return COMPANY_ICONS.default;
+}
+
+function getIconColor(index) {
+  return ICON_COLORS[index % ICON_COLORS.length];
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// THEME TOGGLE
+// AI SCORE CALCULATION
 // ═══════════════════════════════════════════════════════════════════════════════
-themeToggle.addEventListener('click', () => {
-  document.documentElement.classList.toggle('dark');
-});
+function calcAIScore(policy, type) {
+  let score = 5;
+  if (type === 'health') {
+    const csr = parseFloat(policy['CSR %']) || 0;
+    const premium = parseFloat(policy['Premium 35yr ₹10L/yr']) || 15000;
+    const pedWait = parseFloat(policy['PED Wait (yrs)']) || 3;
+    const maxSI = parseFloat(policy['Max SI (₹L)']) || 10;
+    score = (csr / 100) * 3.5 + Math.min(maxSI / 200, 1) * 2.5 + Math.max(0, (1 - premium / 40000)) * 2.0 + Math.max(0, (1 - pedWait / 5)) * 2.0;
+  } else {
+    const csr = parseFloat(policy['Claim Settlement Ratio %']) || 0;
+    const premium = parseFloat(policy['Total Premium (₹/yr)']) || 10000;
+    const zeroDep = (policy['Zero Dep Add-on'] || '').toString().toLowerCase();
+    const rsa = (policy['Roadside Assist'] || '').toString().toLowerCase();
+    score = (csr / 100) * 3.5 + Math.max(0, (1 - premium / 30000)) * 2.5 + (zeroDep.includes('yes') || zeroDep.includes('add-on') ? 2.0 : 0) + (rsa.includes('yes') ? 2.0 : 0);
+  }
+  return Math.min(10, Math.max(1, Math.round(score * 10) / 10));
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// NAV
+// FETCH & RENDER POLICIES
 // ═══════════════════════════════════════════════════════════════════════════════
-document.querySelectorAll('nav a').forEach(link => {
-  link.addEventListener('click', (e) => {
-    const href = link.getAttribute('href');
-    if (href && href !== '#' && !href.startsWith('#')) {
-      return; // Let the browser navigate
+async function loadPolicies() {
+  showSkeletons();
+  try {
+    const res = await fetch(`${API}/api/insurance-data/${currentType}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    allPolicies = data.policies || [];
+    applyFilters();
+  } catch (err) {
+    console.error('Load error:', err);
+    policyGrid.innerHTML = `<div class="col-span-full text-center py-20"><p class="text-slate-500">Failed to load policies. Make sure the server is running.</p></div>`;
+  }
+}
+
+function showSkeletons() {
+  policyGrid.innerHTML = Array(8).fill('<div class="skeleton h-[320px]"></div>').join('');
+}
+
+function applyFilters() {
+  let policies = [...allPolicies];
+  // Search
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    policies = policies.filter(p =>
+      (p['Insurer'] || '').toLowerCase().includes(q) ||
+      (p['Plan Name'] || '').toLowerCase().includes(q)
+    );
+  }
+  // Sort/filter
+  if (activeFilter === 'low-premium') {
+    const key = currentType === 'health' ? 'Premium 35yr ₹10L/yr' : 'Total Premium (₹/yr)';
+    policies.sort((a, b) => (parseFloat(a[key]) || 99999) - (parseFloat(b[key]) || 99999));
+  } else if (activeFilter === 'high-coverage') {
+    if (currentType === 'health') {
+      policies.sort((a, b) => (parseFloat(b['Max SI (₹L)']) || 0) - (parseFloat(a['Max SI (₹L)']) || 0));
+    } else {
+      policies.sort((a, b) => (parseFloat(b['IDV Typical (₹)']) || 0) - (parseFloat(a['IDV Typical (₹)']) || 0));
     }
-    e.preventDefault();
-    document.querySelectorAll('nav a').forEach(l => {
-      l.classList.remove('active-nav');
-      l.classList.add('text-slate-600', 'dark:text-slate-400');
+  } else if (activeFilter === 'best-claim') {
+    const key = currentType === 'health' ? 'CSR %' : 'Claim Settlement Ratio %';
+    policies.sort((a, b) => (parseFloat(b[key]) || 0) - (parseFloat(a[key]) || 0));
+  } else if (activeFilter === 'low-wait') {
+    if (currentType === 'health') {
+      policies.sort((a, b) => (parseFloat(a['PED Wait (yrs)']) || 99) - (parseFloat(b['PED Wait (yrs)']) || 99));
+    }
+  }
+  filteredPolicies = policies;
+  renderCards(policies);
+}
+
+function renderCards(policies) {
+  if (!policies.length) {
+    policyGrid.innerHTML = '<div class="col-span-full text-center py-20"><iconify-icon icon="lucide:search-x" class="text-4xl text-slate-600 mb-3"></iconify-icon><p class="text-slate-500 text-sm">No policies found.</p></div>';
+    countLabel.textContent = '0 Policies';
+    return;
+  }
+  countLabel.textContent = `${policies.length} Policies Found`;
+  policyGrid.innerHTML = policies.map((p, i) => buildCard(p, i)).join('');
+  // Attach click handlers
+  $$('.policy-card').forEach((card, idx) => {
+    card.addEventListener('click', () => openModal(policies[idx], idx));
+  });
+}
+
+function buildCard(p, index) {
+  const color = getIconColor(index);
+  const icon = getCompanyIcon(p['Insurer']);
+  const score = calcAIScore(p, currentType);
+  const scorePct = Math.round(score * 10);
+  const company = p['Insurer'] || 'Unknown';
+  const plan = p['Plan Name'] || 'Insurance Plan';
+
+  let metric1Label, metric1Val, metric2Label, metric2Val, metric3Label, metric3Val, metric4Label, metric4Val;
+
+  if (currentType === 'health') {
+    metric1Label = 'Premium (Age 35)';
+    metric1Val = formatCurrency(p['Premium 35yr ₹10L/yr']);
+    metric2Label = 'Coverage';
+    metric2Val = p['Max SI (₹L)'] ? `₹${p['Max SI (₹L)']}L` : 'N/A';
+    metric3Label = 'Claim Ratio';
+    metric3Val = p['CSR %'] ? `${p['CSR %']}%` : 'N/A';
+    metric4Label = 'PED Waiting';
+    metric4Val = p['PED Wait (yrs)'] ? `${p['PED Wait (yrs)']} Yrs` : 'N/A';
+  } else {
+    metric1Label = 'Total Premium';
+    metric1Val = formatCurrency(p['Total Premium (₹/yr)']);
+    metric2Label = 'IDV (Typical)';
+    metric2Val = formatCurrency(p['IDV Typical (₹)']);
+    metric3Label = 'Claim Ratio';
+    metric3Val = p['Claim Settlement Ratio %'] ? `${p['Claim Settlement Ratio %']}%` : 'N/A';
+    metric4Label = 'Zero Depreciation';
+    metric4Val = p['Zero Dep Add-on'] || 'N/A';
+  }
+
+  return `
+    <div class="policy-card glass-card rounded-2xl p-5 cursor-pointer glass-card-hover transition-all duration-300 fade-in flex flex-col">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-11 h-11 bg-${color}-500/10 rounded-xl flex items-center justify-center flex-shrink-0">
+          <iconify-icon icon="${icon}" class="text-xl text-${color}-500"></iconify-icon>
+        </div>
+        <div class="min-w-0">
+          <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">${escapeHtml(company)}</p>
+          <h5 class="text-sm font-bold text-white truncate">${escapeHtml(plan)}</h5>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3 mb-4 p-3 bg-slate-800/30 rounded-xl border border-white/5">
+        <div><p class="text-[9px] text-slate-500 uppercase font-bold tracking-wider">${metric1Label}</p><p class="text-sm font-bold text-indigo-400">${metric1Val}</p></div>
+        <div><p class="text-[9px] text-slate-500 uppercase font-bold tracking-wider">${metric2Label}</p><p class="text-sm font-bold text-white">${metric2Val}</p></div>
+      </div>
+      <div class="grid grid-cols-2 gap-3 mb-4">
+        <div><p class="text-[9px] text-slate-500 uppercase font-bold">${metric3Label}</p><p class="text-xs font-bold text-slate-300">${metric3Val}</p></div>
+        <div><p class="text-[9px] text-slate-500 uppercase font-bold">${metric4Label}</p><p class="text-xs font-bold text-slate-300">${metric4Val}</p></div>
+      </div>
+      <div class="mt-auto">
+        <div class="flex justify-between items-center mb-1.5">
+          <span class="text-[10px] font-bold text-slate-400">AI Score</span>
+          <span class="text-[10px] font-bold ${score >= 7 ? 'text-emerald-400' : score >= 5 ? 'text-amber-400' : 'text-red-400'}">${score}/10</span>
+        </div>
+        <div class="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden mb-4">
+          <div class="h-full rounded-full ${score >= 7 ? 'bg-emerald-500' : score >= 5 ? 'bg-amber-500' : 'bg-red-500'}" style="width:${scorePct}%"></div>
+        </div>
+        <button class="w-full py-2.5 rounded-xl bg-slate-800 text-white text-xs font-bold hover:bg-indigo-600 transition-all duration-300 flex items-center justify-center gap-1.5">
+          <iconify-icon icon="lucide:eye"></iconify-icon> View Details
+        </button>
+      </div>
+    </div>`;
+}
+
+function formatCurrency(val) {
+  const num = parseFloat(val);
+  if (isNaN(num)) return 'N/A';
+  if (num >= 100000) return '₹' + (num / 100000).toFixed(1) + 'L';
+  return '₹' + num.toLocaleString('en-IN');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MODAL
+// ═══════════════════════════════════════════════════════════════════════════════
+function openModal(policy, index) {
+  const color = getIconColor(index);
+  const icon = getCompanyIcon(policy['Insurer']);
+  const score = calcAIScore(policy, currentType);
+  const scorePct = Math.round(score * 10);
+
+  $('#modal-company').textContent = policy['Insurer'] || 'Unknown';
+  $('#modal-plan').textContent = policy['Plan Name'] || 'Insurance Plan';
+  $('#modal-icon').className = `w-14 h-14 bg-${color}-500/10 rounded-2xl flex items-center justify-center`;
+  $('#modal-icon').innerHTML = `<iconify-icon icon="${icon}" class="text-3xl text-${color}-500"></iconify-icon>`;
+  $('#modal-type-text').textContent = currentType === 'health' ? 'Health Insurance' : 'Vehicle Insurance';
+  $('#modal-score-text').textContent = score;
+  $('#modal-score-label').textContent = score >= 8 ? 'Excellent Policy' : score >= 6 ? 'Good Policy' : 'Average Policy';
+
+  // Animate score ring
+  const ring = $('#modal-score-ring');
+  const circumference = 301.6;
+  ring.style.strokeDashoffset = circumference;
+  setTimeout(() => { ring.style.strokeDashoffset = circumference - (circumference * scorePct / 100); }, 50);
+
+  // Build features
+  const features = getFeatures(policy, currentType);
+  const featuresEl = $('#modal-features');
+  featuresEl.innerHTML = features.map((f, i) => `
+    <div class="flex items-center gap-3 p-3 bg-slate-800/30 rounded-xl border border-white/5 fade-in" style="animation-delay:${i * 40}ms">
+      <div class="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center flex-shrink-0">
+        <span class="text-xs font-bold text-indigo-400">${i + 1}</span>
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="text-[10px] text-slate-500 uppercase font-bold">${f.label}</p>
+        <p class="text-sm font-semibold text-white truncate">${escapeHtml(String(f.value))}</p>
+      </div>
+    </div>`).join('');
+
+  modal.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+  modal._policy = policy;
+}
+
+function closeModal() {
+  modal.classList.add('hidden');
+  document.body.style.overflow = '';
+}
+
+function getFeatures(p, type) {
+  if (type === 'health') {
+    return [
+      { label: 'Premium (Age 35)', value: formatCurrency(p['Premium 35yr ₹10L/yr']) },
+      { label: 'Max Coverage', value: p['Max SI (₹L)'] ? `₹${p['Max SI (₹L)']} Lakh` : 'N/A' },
+      { label: 'Waiting Period (PED)', value: p['PED Wait (yrs)'] ? `${p['PED Wait (yrs)']} Years` : 'N/A' },
+      { label: 'Claim Settlement Ratio', value: p['CSR %'] ? `${p['CSR %']}%` : 'N/A' },
+      { label: 'Room Rent Limit', value: p['Room Rent Limit'] || 'N/A' },
+      { label: 'Co-payment', value: p['Co-pay %'] !== undefined ? `${p['Co-pay %']}%` : 'N/A' },
+      { label: 'Pre-existing Disease Wait', value: p['PED Wait (yrs)'] ? `${p['PED Wait (yrs)']} Years` : 'N/A' },
+      { label: 'Network Hospitals', value: p['Network Hospitals'] || 'N/A' },
+      { label: 'Daycare Procedures', value: p['Daycare Procedures'] || 'N/A' },
+      { label: 'Maternity Cover', value: p['Maternity Cover'] || 'N/A' },
+    ];
+  } else {
+    return [
+      { label: 'Total Premium', value: formatCurrency(p['Total Premium (₹/yr)']) },
+      { label: 'IDV (Typical)', value: formatCurrency(p['IDV Typical (₹)']) },
+      { label: 'Claim Settlement Ratio', value: p['Claim Settlement Ratio %'] ? `${p['Claim Settlement Ratio %']}%` : 'N/A' },
+      { label: 'Zero Depreciation', value: p['Zero Dep Add-on'] || 'N/A' },
+      { label: 'Roadside Assistance', value: p['Roadside Assist'] || 'N/A' },
+      { label: 'Engine Protection', value: p['Engine Protect Add-on'] || 'N/A' },
+      { label: 'NCB Protection', value: p['NCB Protect Add-on'] || 'N/A' },
+      { label: 'Cashless Garages', value: p['Cashless Garages'] || 'N/A' },
+      { label: 'Personal Accident Cover', value: p['Personal Accident Cover'] || 'N/A' },
+      { label: 'Consumables Cover', value: p['Consumables Cover'] || 'N/A' },
+    ];
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EVENT LISTENERS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Type selector
+$$('.type-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    currentType = btn.dataset.type;
+    $$('.type-btn').forEach(b => {
+      b.classList.remove('type-btn-active');
+      b.classList.add('bg-slate-800/50', 'text-slate-400', 'border-white/5');
     });
-    link.classList.add('active-nav');
-    link.classList.remove('text-slate-600', 'dark:text-slate-400');
+    btn.classList.add('type-btn-active');
+    btn.classList.remove('bg-slate-800/50', 'text-slate-400', 'border-white/5');
+    activeFilter = 'none';
+    searchQuery = '';
+    searchInput.value = '';
+    updateFilterChips();
+    loadPolicies();
   });
 });
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// FILE UPLOAD
-// ═══════════════════════════════════════════════════════════════════════════════
+// Filter chips
+$$('.filter-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    activeFilter = chip.dataset.filter;
+    updateFilterChips();
+    applyFilters();
+  });
+});
+
+function updateFilterChips() {
+  $$('.filter-chip').forEach(c => {
+    c.classList.remove('filter-active');
+    if (c.dataset.filter === activeFilter) c.classList.add('filter-active');
+  });
+  if (activeFilter !== 'none') {
+    filterBadge.textContent = activeFilter.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase());
+    filterBadge.classList.remove('hidden');
+  } else {
+    filterBadge.classList.add('hidden');
+  }
+}
+
+// Search
+let searchTimeout;
+searchInput.addEventListener('input', () => {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    searchQuery = searchInput.value.trim();
+    applyFilters();
+  }, 250);
+});
+
+// Modal close
+$('#modal-close-btn').addEventListener('click', closeModal);
+modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+
+// Modal actions
+$('#modal-compare-btn').addEventListener('click', () => {
+  closeModal();
+  window.location.href = '/compare-policies';
+});
+$('#modal-save-btn').addEventListener('click', () => {
+  const btn = $('#modal-save-btn');
+  btn.innerHTML = '<iconify-icon icon="lucide:check"></iconify-icon> Saved!';
+  setTimeout(() => { btn.innerHTML = '<iconify-icon icon="lucide:bookmark"></iconify-icon> Save Policy'; }, 1500);
+});
+$('#modal-ask-ai-btn').addEventListener('click', () => {
+  const policy = modal._policy;
+  if (policy) {
+    closeModal();
+    const msg = `Tell me about the ${policy['Insurer']} ${policy['Plan Name']} policy – pros, cons, and who it's best for.`;
+    chatInput.value = msg;
+    chatInput.focus();
+  }
+});
+
+// Upload
 uploadBtn.addEventListener('click', () => fileInput.click());
-uploadDropZone.addEventListener('click', () => fileInput.click());
-
-// Drag & drop support
-uploadDropZone.addEventListener('dragover', (e) => {
-  e.preventDefault();
-  uploadDropZone.classList.add('border-indigo-400', 'bg-indigo-50', 'dark:bg-indigo-900/20');
-});
-uploadDropZone.addEventListener('dragleave', () => {
-  uploadDropZone.classList.remove('border-indigo-400', 'bg-indigo-50', 'dark:bg-indigo-900/20');
-});
-uploadDropZone.addEventListener('drop', (e) => {
-  e.preventDefault();
-  uploadDropZone.classList.remove('border-indigo-400', 'bg-indigo-50', 'dark:bg-indigo-900/20');
-  if (e.dataTransfer.files.length) handleUpload(e.dataTransfer.files);
-});
-
-fileInput.addEventListener('change', () => {
-  if (fileInput.files.length) handleUpload(fileInput.files);
-});
-
-async function handleUpload(files) {
+fileInput.addEventListener('change', async () => {
+  if (!fileInput.files.length) return;
   const formData = new FormData();
-  for (const f of files) formData.append('files', f);
-
-  // Show uploading state on the drop zone
-  const origHTML = uploadDropZone.innerHTML;
-  uploadDropZone.innerHTML = `
-    <div class="flex items-center gap-3 text-sm text-slate-500">
-      <svg class="animate-spin h-5 w-5 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-      </svg>
-      Uploading & processing…
-    </div>`;
-
+  for (const f of fileInput.files) formData.append('files', f);
   try {
     const res = await fetch(`${API}/api/upload`, { method: 'POST', body: formData });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Upload failed');
-    await refreshPolicies();
+    alert('Policy uploaded & processed successfully!');
   } catch (err) {
     alert('Upload error: ' + err.message);
   } finally {
-    uploadDropZone.innerHTML = origHTML;
     fileInput.value = '';
   }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// POLICY CARDS
-// ═══════════════════════════════════════════════════════════════════════════════
-async function refreshPolicies() {
-  try {
-    const res = await fetch(`${API}/api/policies`);
-    const data = await res.json();
-    renderPolicyCards(data.policies);
-  } catch (err) {
-    console.error('Failed to fetch policies:', err);
-  }
-}
-
-function renderPolicyCards(policies) {
-  // Remove all cards except the upload drop zone
-  policyCardsGrid.querySelectorAll('.policy-card').forEach(el => el.remove());
-  policyCountLabel.textContent = `Your Uploaded Policies (${policies.length})`;
-
-  policies.forEach((p, i) => {
-    const color = POLICY_COLORS[i % POLICY_COLORS.length];
-    const card = document.createElement('div');
-    card.className = 'policy-card bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-all group relative fade-in';
-    card.innerHTML = `
-      <button class="delete-policy-btn absolute top-4 right-4 text-slate-300 hover:text-red-500 transition-colors" data-filename="${p.filename}">
-        <iconify-icon icon="lucide:trash-2"></iconify-icon>
-      </button>
-      <div class="flex items-center gap-3 mb-6">
-        <div class="w-12 h-12 ${color.bg} rounded-xl flex items-center justify-center">
-          <iconify-icon icon="${color.iconName}" class="text-2xl ${color.icon}"></iconify-icon>
-        </div>
-        <div>
-          <p class="text-sm font-bold text-slate-900 dark:text-white">${p.name}</p>
-          <p class="text-xs text-slate-500">${p.chunks} chunks indexed</p>
-        </div>
-      </div>
-      <div class="flex items-center">
-        <span class="text-xs font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 px-2.5 py-1 rounded-lg">✅ Processed</span>
-      </div>`;
-    // Insert before the upload drop zone
-    policyCardsGrid.insertBefore(card, uploadDropZone);
-  });
-
-  // Attach delete handlers
-  document.querySelectorAll('.delete-policy-btn').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const fn = btn.dataset.filename;
-      if (!confirm(`Delete policy "${fn}"?`)) return;
-      await fetch(`${API}/api/policies/${encodeURIComponent(fn)}`, { method: 'DELETE' });
-      await refreshPolicies();
-    });
-  });
-
-  // Toggle comparison section visibility
-  if (policies.length >= 2) {
-    comparisonSection.classList.remove('hidden');
-  } else {
-    comparisonSection.classList.add('hidden');
-    analyticsSection.classList.add('hidden');
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// COMPARE POLICIES
-// ═══════════════════════════════════════════════════════════════════════════════
-compareBtn.addEventListener('click', async () => {
-  comparisonLoading.classList.remove('hidden');
-  comparisonTableWrap.classList.add('hidden');
-  aiRecBar.classList.add('hidden');
-  compareBtn.disabled = true;
-  compareBtn.innerHTML = '<svg class="animate-spin h-4 w-4 text-white inline mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> Analyzing…';
-
-  try {
-    const res = await fetch(`${API}/api/compare`, { method: 'POST' });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Comparison failed');
-    renderComparison(data);
-  } catch (err) {
-    alert('Comparison error: ' + err.message);
-  } finally {
-    comparisonLoading.classList.add('hidden');
-    compareBtn.disabled = false;
-    compareBtn.innerHTML = '<iconify-icon icon="lucide:sparkles"></iconify-icon> Run AI Comparison';
-  }
 });
 
-function renderComparison(data) {
-  const tableMd = data.table || '';
-  if (!tableMd) {
-    // Show summary as fallback
-    if (data.summary) {
-      comparisonTbody.innerHTML = `<tr><td class="px-6 py-4 text-xs text-slate-600 dark:text-slate-300" colspan="10">${data.summary}</td></tr>`;
-      comparisonTableWrap.classList.remove('hidden');
-    }
-    return;
-  }
-
-  // Parse markdown table
-  const lines = tableMd.split('\n').map(l => l.trim()).filter(Boolean);
-  const dataLines = lines.filter(l => !l.replace(/[|\-\s]/g, '').match(/^$/));
-  if (dataLines.length < 2) return;
-
-  const headers = dataLines[0].split('|').map(c => c.trim()).filter(Boolean);
-  const rows = dataLines.slice(1)
-    .filter(l => !l.match(/^[\|\-\s]+$/))
-    .map(l => l.split('|').map(c => c.trim()).filter(Boolean));
-
-  // Build thead
-  comparisonThead.innerHTML = `<tr class="bg-slate-50 dark:bg-slate-800/50">
-    ${headers.map((h, i) => {
-      if (i === 0) return `<th class="px-6 py-4 text-[10px] text-slate-400 uppercase font-bold tracking-widest">${h}</th>`;
-      return `<th class="px-6 py-4"><div class="text-xs font-bold text-indigo-600">${h}</div></th>`;
-    }).join('')}
-  </tr>`;
-
-  // Build tbody
-  comparisonTbody.innerHTML = rows.map(cells =>
-    `<tr class="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-      ${cells.map((c, i) => {
-        if (i === 0) return `<td class="px-6 py-4 text-xs font-semibold text-slate-600 dark:text-slate-400">${c}</td>`;
-        const isGood = c.toLowerCase().includes('covered') || c.toLowerCase().includes('no limit') || c.toLowerCase().includes('yes');
-        const isBad = c.toLowerCase().includes('not covered') || c.toLowerCase().includes('not specified');
-        const color = isBad ? 'text-red-500' : isGood ? 'text-emerald-500' : 'text-slate-900 dark:text-white';
-        return `<td class="px-6 py-4 text-xs font-medium ${color}">${c}</td>`;
-      }).join('')}
-    </tr>`
-  ).join('');
-
-  comparisonTableWrap.classList.remove('hidden');
-  exportBtn.classList.remove('hidden');
-
-  // Winner / recommendation bar
-  if (data.winner) {
-    recText.innerHTML = `Based on AI analysis, <span class="font-bold">${data.winner}</span> is the better choice. ${data.winner_reason || ''}`;
-    aiRecBar.classList.remove('hidden');
-    bestValueName.textContent = data.winner;
-    bestValueSub.textContent = data.winner_reason ? data.winner_reason.substring(0, 60) + '…' : 'Best overall';
-  }
-
-  // Show analytics section
-  analyticsSection.classList.remove('hidden');
-
-  // Trigger hidden clauses detection in background
-  detectHiddenClauses();
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// HIDDEN CLAUSES
-// ═══════════════════════════════════════════════════════════════════════════════
-async function detectHiddenClauses() {
-  try {
-    const res = await fetch(`${API}/api/hidden-clauses`, { method: 'POST' });
-    const data = await res.json();
-    if (!res.ok) return;
-    let total = 0;
-    for (const key of Object.keys(data)) {
-      if (Array.isArray(data[key])) total += data[key].length;
-    }
-    clauseCount.textContent = total;
-  } catch (err) {
-    console.error('Hidden clause detection failed:', err);
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// EXPORT REPORT
-// ═══════════════════════════════════════════════════════════════════════════════
-exportBtn.addEventListener('click', () => {
-  window.open(`${API}/api/report/download`, '_blank');
-});
+// Sidebar CTA
+$('#cta-sidebar-ai').addEventListener('click', () => chatInput.focus());
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // AI CHAT
@@ -296,8 +406,8 @@ function addUserMessage(text) {
   const div = document.createElement('div');
   div.className = 'flex flex-col items-end space-y-2 fade-in';
   div.innerHTML = `
-    <div class="gradient-purple text-white px-4 py-2.5 rounded-2xl rounded-tr-none text-xs leading-relaxed max-w-[85%] shadow-md">${escapeHtml(text)}</div>
-    <p class="text-[10px] text-slate-400 flex items-center gap-1">You • ${time}</p>`;
+    <div class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-2.5 rounded-2xl rounded-tr-none text-xs leading-relaxed max-w-[85%] shadow-md">${escapeHtml(text)}</div>
+    <p class="text-[10px] text-slate-500 flex items-center gap-1">You • ${time}</p>`;
   chatContainer.appendChild(div);
   chatContainer.scrollTop = chatContainer.scrollHeight;
 }
@@ -308,10 +418,10 @@ function addTypingIndicator() {
   div.className = 'flex flex-col items-start space-y-2 fade-in';
   div.innerHTML = `
     <div class="flex items-start gap-2 max-w-[90%]">
-      <div class="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-slate-800 border border-indigo-100 dark:border-indigo-700 flex items-center justify-center flex-shrink-0">
-        <iconify-icon icon="lucide:bot" class="text-indigo-600"></iconify-icon>
+      <div class="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center flex-shrink-0">
+        <iconify-icon icon="lucide:bot" class="text-indigo-500"></iconify-icon>
       </div>
-      <div class="bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 p-4 rounded-2xl rounded-tl-none shadow-sm">
+      <div class="glass-card p-4 rounded-2xl rounded-tl-none shadow-sm">
         <span class="typing-dot"></span> <span class="typing-dot"></span> <span class="typing-dot"></span>
       </div>
     </div>`;
@@ -326,28 +436,20 @@ function removeTypingIndicator() {
 
 function addAIMessage(text) {
   const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  // Convert basic markdown to HTML
   let html = escapeHtml(text)
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\n- /g, '<br>• ')
     .replace(/\n/g, '<br>');
-
   const div = document.createElement('div');
   div.className = 'flex flex-col items-start space-y-2 fade-in';
   div.innerHTML = `
     <div class="flex items-start gap-2 max-w-[90%]">
-      <div class="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-slate-800 border border-indigo-100 dark:border-indigo-700 flex items-center justify-center flex-shrink-0">
-        <iconify-icon icon="lucide:bot" class="text-indigo-600"></iconify-icon>
+      <div class="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center flex-shrink-0">
+        <iconify-icon icon="lucide:bot" class="text-indigo-500"></iconify-icon>
       </div>
-      <div class="bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 p-4 rounded-2xl rounded-tl-none text-xs text-slate-700 dark:text-slate-300 shadow-sm">${html}</div>
+      <div class="glass-card p-4 rounded-2xl rounded-tl-none text-xs text-slate-300 shadow-sm">${html}</div>
     </div>
-    <div class="pl-10 flex items-center justify-between w-full pr-4">
-      <p class="text-[10px] text-slate-400">AI Assistant • ${time}</p>
-      <div class="flex gap-2">
-        <button class="text-slate-300 hover:text-slate-500 transition-colors"><iconify-icon icon="lucide:thumbs-up" class="text-xs"></iconify-icon></button>
-        <button class="text-slate-300 hover:text-slate-500 transition-colors"><iconify-icon icon="lucide:thumbs-down" class="text-xs"></iconify-icon></button>
-      </div>
-    </div>`;
+    <p class="text-[10px] text-slate-500 pl-10">AI Assistant • ${time}</p>`;
   chatContainer.appendChild(div);
   chatContainer.scrollTop = chatContainer.scrollHeight;
 }
@@ -357,7 +459,6 @@ async function sendChat(message) {
   addUserMessage(message);
   chatInput.value = '';
   addTypingIndicator();
-
   try {
     const res = await fetch(`${API}/api/chat`, {
       method: 'POST',
@@ -367,7 +468,7 @@ async function sendChat(message) {
     const data = await res.json();
     removeTypingIndicator();
     if (!res.ok) {
-      addAIMessage('⚠️ ' + (data.error || 'Something went wrong. Please try again.'));
+      addAIMessage('⚠️ ' + (data.error || 'Something went wrong.'));
       return;
     }
     addAIMessage(data.answer);
@@ -381,34 +482,26 @@ chatSendBtn.addEventListener('click', () => sendChat(chatInput.value));
 chatInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(chatInput.value); }
 });
-
-// Quick prompts
-document.querySelectorAll('.quick-prompt').forEach(btn => {
+$$('.quick-prompt').forEach(btn => {
   btn.addEventListener('click', () => sendChat(btn.dataset.prompt));
 });
-
-// Clear chat
 clearChatBtn.addEventListener('click', async () => {
   await fetch(`${API}/api/chat/clear`, { method: 'DELETE' });
   chatContainer.innerHTML = '';
-  // Re-add welcome message
   const welcome = document.createElement('div');
   welcome.className = 'flex flex-col items-start space-y-2 fade-in';
   welcome.innerHTML = `
     <div class="flex items-start gap-2 max-w-[90%]">
-      <div class="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-slate-800 border border-indigo-100 dark:border-indigo-700 flex items-center justify-center flex-shrink-0">
-        <iconify-icon icon="lucide:bot" class="text-indigo-600"></iconify-icon>
+      <div class="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center flex-shrink-0">
+        <iconify-icon icon="lucide:bot" class="text-indigo-500"></iconify-icon>
       </div>
-      <div class="bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 p-4 rounded-2xl rounded-tl-none text-xs text-slate-700 dark:text-slate-300 shadow-sm">
-        <p class="font-semibold text-slate-900 dark:text-white mb-2">Welcome! I'm your AI Insurance Advisor.</p>
+      <div class="glass-card p-4 rounded-2xl rounded-tl-none text-xs text-slate-300 shadow-sm">
+        <p class="font-semibold text-white mb-2">Welcome! I'm your AI Insurance Advisor.</p>
         <p>Upload your insurance policy PDFs and I'll help you compare them, find hidden clauses, and pick the best one for your needs.</p>
       </div>
     </div>`;
   chatContainer.appendChild(welcome);
 });
-
-// Sidebar CTA -> focus chat
-$('#cta-sidebar-ai').addEventListener('click', () => chatInput.focus());
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // UTIL
@@ -420,6 +513,9 @@ function escapeHtml(text) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// INIT — Load existing policies on page load
+// INIT
 // ═══════════════════════════════════════════════════════════════════════════════
-document.addEventListener('DOMContentLoaded', () => refreshPolicies());
+document.addEventListener('DOMContentLoaded', () => {
+  updateFilterChips();
+  loadPolicies();
+});

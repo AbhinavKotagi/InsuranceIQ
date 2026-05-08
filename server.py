@@ -12,6 +12,9 @@ from pathlib import Path
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify, render_template, send_file
 
+# xlsx reading
+import openpyxl
+
 # Reuse existing utility modules
 from utils.pdf_processor import extract_text_from_pdf, chunk_text
 from utils.vector_store import VectorStore
@@ -31,7 +34,7 @@ Path("chroma_db").mkdir(exist_ok=True)
 # ─── Initialise AI Services ──────────────────────────────────────────────────
 api_key = os.getenv("GROQ_API_KEY", "")
 if not api_key:
-    print("⚠️  GROQ_API_KEY not found. Set it in your .env file.")
+    print("[WARNING] GROQ_API_KEY not found. Set it in your .env file.")
 
 llm = GroqHelper(api_key) if api_key else None
 vector_store = VectorStore()
@@ -46,6 +49,38 @@ state = {
     "recommendation": None,
 }
 
+# ─── XLSX Data Cache ─────────────────────────────────────────────────────────
+_xlsx_cache = {}
+
+XLSX_FILES = {
+    "health": "health_insurance_all_years.xlsx",
+    "vehicle": "vehicle_insurance_all_years.xlsx",
+}
+
+
+def _load_xlsx(insurance_type):
+    """Load xlsx file and return list of dicts. Cached after first read."""
+    if insurance_type in _xlsx_cache:
+        return _xlsx_cache[insurance_type]
+
+    filename = XLSX_FILES.get(insurance_type)
+    if not filename or not os.path.exists(filename):
+        return []
+
+    wb = openpyxl.load_workbook(filename, read_only=True, data_only=True)
+    ws = wb.active
+    headers = [str(cell.value or "").strip() for cell in ws[1]]
+    rows = []
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        record = {}
+        for i, val in enumerate(row):
+            if i < len(headers):
+                record[headers[i]] = val
+        rows.append(record)
+    wb.close()
+    _xlsx_cache[insurance_type] = rows
+    return rows
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # ROUTES — Pages
@@ -55,6 +90,12 @@ state = {
 def index():
     """Serve the main dashboard."""
     return render_template("index.html")
+
+
+@app.route("/compare-policies")
+def compare_policies_page():
+    """Serve the policy comparison page."""
+    return render_template("compare-policies.html")
 
 
 @app.route("/catalog")
@@ -67,6 +108,72 @@ def catalog():
 def settings():
     """Serve the profile settings page."""
     return render_template("settings.html")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# API — Insurance Data from XLSX
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/insurance-data/<insurance_type>", methods=["GET"])
+def get_insurance_data(insurance_type):
+    """
+    Return policy data from xlsx files as JSON.
+    Supports: health, vehicle
+    Query params: year, search, sort, limit
+    """
+    if insurance_type not in XLSX_FILES:
+        return jsonify({"error": f"Unknown type: {insurance_type}. Use 'health' or 'vehicle'."}), 400
+
+    rows = _load_xlsx(insurance_type)
+    if not rows:
+        return jsonify({"error": "Data file not found or empty"}), 404
+
+    # Filter by year (default: latest)
+    year_param = request.args.get("year", "latest")
+    if year_param == "latest":
+        years = set()
+        for r in rows:
+            y = r.get("Year")
+            if y is not None:
+                try:
+                    years.add(int(y))
+                except (ValueError, TypeError):
+                    pass
+        if years:
+            latest = max(years)
+            rows = [r for r in rows if r.get("Year") is not None and int(r.get("Year", 0)) == latest]
+    elif year_param != "all":
+        try:
+            target_year = int(year_param)
+            rows = [r for r in rows if r.get("Year") is not None and int(r.get("Year", 0)) == target_year]
+        except ValueError:
+            pass
+
+    # Search filter
+    search = request.args.get("search", "").strip().lower()
+    if search:
+        rows = [r for r in rows if
+                search in str(r.get("Insurer", "")).lower() or
+                search in str(r.get("Plan Name", "")).lower()]
+
+    # Convert all values to JSON-safe types
+    clean_rows = []
+    for r in rows:
+        clean = {}
+        for k, v in r.items():
+            if v is None:
+                clean[k] = ""
+            elif isinstance(v, (int, float)):
+                clean[k] = v
+            else:
+                clean[k] = str(v)
+        clean_rows.append(clean)
+
+    return jsonify({
+        "type": insurance_type,
+        "count": len(clean_rows),
+        "policies": clean_rows,
+    })
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -330,7 +437,7 @@ def download_report():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
-    print("🛡️  InsureIQ Flask Server starting…")
+    print("[InsureAI] Flask Server starting...")
     print("   Dashboard: http://localhost:5000")
     print("   API Docs:  See server.py for all endpoints")
     app.run(host="0.0.0.0", port=5000, debug=True)
